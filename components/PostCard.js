@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { mentionRegex } from '@/lib/utils'
+import { Heart, MessageCircle, Repeat2 } from 'lucide-react'
 
 export default function PostCard({ post }){
   const [likes, setLikes] = useState(0)
@@ -57,26 +58,49 @@ export default function PostCard({ post }){
   useEffect(()=>{ refreshLikes(); fetchComments() }, [post.id])
 
   return (
-    <div className="card p-4">
-      <div className="flex items-center gap-3 mb-3">
-        {post.profiles?.avatar_url ? <img src={post.profiles.avatar_url} className="h-8 w-8 rounded-full"/> : <div className="h-8 w-8 rounded-full bg-neutral-700"/>}
-        <div className="text-sm opacity-80">@{post.profiles?.username || 'user'}</div>
-        <div className="ml-auto text-xs opacity-50">{new Date(post.created_at).toLocaleString()}</div>
-      </div>
-      {post.content && <p className="whitespace-pre-wrap text-neutral-200 mb-3">{contentNodes}</p>}
-      {post.media_url && (<img src={post.media_url} alt="media" className="mb-3 max-h-[420px] w-full object-cover"/>)}
-      <div className="flex items-center gap-4 text-sm opacity-80">
-        <button onClick={toggleLike} className={liked? 'text-gold' : ''}>❤ {likes}</button>
-      </div>
-      <div className="mt-3">
-        <div className="flex gap-2">
-          <input value={cText} onChange={e=>setCText(e.target.value)} placeholder="Reply…" className="input flex-1"/>
-          <button onClick={addComment} className="btn">Send</button>
-        </div>
-        <div className="mt-3 space-y-2">
-          {comments.map(c=> (<div key={c.id} className="text-sm opacity-90">
-            <span className="font-medium">@{c.profiles?.username || 'user'}</span>: {c.content}
-          </div>))}
+    <div>
+      <div className="flex items-start gap-3">
+        {post.profiles?.avatar_url
+          ? <img src={post.profiles.avatar_url} className="h-10 w-10 rounded-full object-cover"/>
+          : <div className="h-10 w-10 rounded-full bg-neutral-700" />}
+        <div className="flex-1">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-semibold">@{post.profiles?.username || 'user'}</span>
+            <span className="opacity-60">{new Date(post.created_at).toLocaleString()}</span>
+          </div>
+
+          {post.content && <p className="whitespace-pre-wrap text-[15px] mt-1">{contentNodes}</p>}
+          {post.media_url && <img src={post.media_url} alt="media" className="mt-2 max-h-[520px] w-full object-cover rounded-xl"/>}
+
+          {/* aksiyon satırı */}
+          <div className="flex items-center gap-6 mt-2">
+            <button className="tw-action flex items-center gap-2" onClick={()=>{}}>
+              <MessageCircle size={18}/> Reply
+            </button>
+            <button className="tw-action flex items-center gap-2" onClick={()=>{}}>
+              <Repeat2 size={18}/> Repost
+            </button>
+            <button className={`tw-action flex items-center gap-2 ${liked?'text-gold':''}`} onClick={toggleLike}>
+              <Heart size={18}/> {likes}
+            </button>
+          </div>
+
+          {/* basit reply alanı */}
+          <div className="flex items-center gap-2 mt-3">
+            <input value={cText} onChange={e=>setCText(e.target.value)} placeholder="Reply…" className="input flex-1"/>
+            <button onClick={addComment} className="btn">Send</button>
+          </div>
+
+          {/* yorumlar */}
+          {comments.length>0 && (
+            <div className="mt-3 space-y-2">
+              {comments.map(c=>(
+                <div key={c.id} className="text-sm opacity-90">
+                  <span className="font-medium">@{c.profiles?.username || 'user'}</span>: {c.content}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
