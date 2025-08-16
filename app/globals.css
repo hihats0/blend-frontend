@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{
+  --bg:#0a0a0a;
+  --panel:#101010;
+  --muted:#a1a1a1;
+  --gold:#f5c518; /* altın sarısı */
+}
+html, body { height: 100%; }
+body{ background:var(--bg); color:#f4f4f5; }
+a{ @apply hover:opacity-80; }
+
+.container{ @apply mx-auto max-w-2xl px-4; }
+.card{ background:var(--panel); border:1px solid #1d1d1d; border-radius:16px; }
+.btn{ background:var(--gold); color:#111; border-radius:12px; padding:8px 14px; font-weight:600; }
+.btn-ghost{ border:1px solid #272727; border-radius:12px; padding:8px 14px; }
+.input{ background:#0b0b0b; border:1px solid #1e1e1e; border-radius:10px; padding:10px 12px; outline:none; }
+.select{ @apply input; }
+
+.text-gold{ color:var(--gold); }
+.ring-gold{ box-shadow:0 0 0 2px var(--gold) inset; }
+.navbar{ position:fixed; bottom:0; left:0; right:0; border-top:1px solid #1d1d1d; background:rgba(8,8,8,.8); backdrop-filter:blur(10px); }
+.nav-item{ display:flex; flex-direction:column; align-items:center; gap:4px; font-size:11px; }
+.active{ color:var(--gold); }
+
+img, video{ border-radius:12px; }
+hr{ border-color:#1d1d1d }
