@@ -10,7 +10,7 @@ export default function Feed(){
   const fetchPosts = async ()=>{
     const { data, error } = await supabase
       .from('posts')
-      .select('id, content, media_url, created_at, profiles(username, avatar_url)')
+      .select('id, kind, content, media_url, created_at, profiles(username, avatar_url)')
       .order('created_at', { ascending: false })
       .limit(50)
     if(!error) setPosts(data || [])
@@ -33,9 +33,9 @@ export default function Feed(){
       </div>
 
       <div className="tw-card">
-        {posts.map(p=> (
+        {posts.map(p=>(
           <div key={p.id} className="tw-item p-3">
-            <PostCard post={p} />
+            <PostCard post={p}/>
           </div>
         ))}
         {posts.length===0 && <div className="p-6 text-sm opacity-70">No posts yet.</div>}
