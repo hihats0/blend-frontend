@@ -27,3 +27,14 @@ a{ @apply hover:opacity-80; }
 
 img, video{ border-radius:12px; }
 hr{ border-color:#1d1d1d }
+
+/* twitter-like genişlik */
+.tw-card { background:var(--panel); border:1px solid #1d1d1d; border-radius:16px; }
+.tw-item { border-bottom:1px solid #1d1d1d; }
+.tw-item:last-child { border-bottom: 0; }
+.tw-action { font-size:13px; opacity:.8; }
+.tw-action:hover { opacity:1; }
+.tw-input { background:#0b0b0b; border:1px solid #1e1e1e; border-radius:9999px; padding:10px 14px; }
+
+/* sticky arama kutusu sağda */
+.sticky-top { position: sticky; top: 12px; }
