@@ -1,7 +1,6 @@
 'use client'
 import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { extractMentions } from '@/lib/utils'
 
 export default function PostComposer(){
   const [content, setContent] = useState('')
@@ -11,8 +10,9 @@ export default function PostComposer(){
   const onPost = async ()=>{
     setLoading(true)
     try{
-      const { data: { user } } = await supabase.auth.getUser()
-      if(!user){ alert('Login first'); setLoading(false); return }
+      const { data: { session } } = await supabase.auth.getSession()
+      if(!session){ alert('Login first'); setLoading(false); return }
+      const token = session.access_token
 
       let media_url = null, kind = 'text'
       if(file){
@@ -25,15 +25,17 @@ export default function PostComposer(){
         media_url = data.publicUrl
       }
 
-      const ins = await supabase.from('posts').insert({ user_id: user.id, kind, content, media_url })
-      if(ins.error) throw ins.error
-
-      // basit mention notif
-      const names = extractMentions(content)
-      if(names.length){
-        const { data: profs } = await supabase.from('profiles').select('id,username').in('username', names)
-        const notif = (profs||[]).map(p => ({ user_id: p.id, type: 'mention', payload: {} }))
-        if(notif.length) await supabase.from('notifications').insert(notif)
+      const resp = await fetch('/api/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ content, kind, media_url })
+      })
+      if(!resp.ok){
+        const err = await resp.json().catch(()=>({}))
+        throw new Error(err.error || 'Post error')
       }
 
       setContent(''); setFile(null)
