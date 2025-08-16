@@ -4,13 +4,26 @@ import { supabase } from '@/lib/supabaseClient'
 import PostComposer from '@/components/PostComposer'
 import PostCard from '@/components/PostCard'
 import StoryBar from '@/components/StoryBar'
+
 export default function Feed(){
   const [posts, setPosts] = useState([])
+
   const fetchPosts = async()=>{
-    const { data } = await supabase.from('posts').select('id, content, media_url, created_at, profiles(username, avatar_url)').order('created_at', { ascending: false }).limit(50)
+    const { data } = await supabase
+      .from('posts')
+      .select('id, content, media_url, created_at, profiles(username, avatar_url)')
+      .order('created_at', { ascending: false })
+      .limit(50)
     setPosts(data || [])
   }
-  useEffect(()=>{ fetchPosts(); const onR = ()=> fetchPosts(); window.addEventListener('refresh-feed', onR); return ()=> window.removeEventListener('refresh-feed', onR)},[])
+
+  useEffect(()=>{
+    fetchPosts()
+    const onR = ()=> fetchPosts()
+    window.addEventListener('refresh-feed', onR)
+    return ()=> window.removeEventListener('refresh-feed', onR)
+  },[])
+
   const addStory = async(e)=>{
     const f = e.target.files?.[0]; if(!f) return
     const { data: { user } } = await supabase.auth.getUser(); if(!user) return alert('Login first')
@@ -22,15 +35,30 @@ export default function Feed(){
       await supabase.from('stories').insert({ user_id: user.id, media_url: data.publicUrl, expires_at: expires })
     }
   }
-  return (<div className="space-y-5">
-    <div className="flex items-center justify-between">
-      <h1 className="text-xl font-semibold">Feed</h1>
-      <label className="text-sm opacity-80 cursor-pointer btn-ghost">+ Story
-        <input type="file" accept="image/*,video/*" className="hidden" onChange={addStory}/>
-      </label>
+
+  return (
+    <div className="space-y-4">
+      {/* üst mini başlık/compose */}
+      <div className="tw-card">
+        <div className="p-3 border-b border-neutral-800 flex items-center justify-between">
+          <div className="text-lg font-semibold">Home</div>
+          <label className="text-xs opacity-80 cursor-pointer btn-ghost">+ Story
+            <input type="file" accept="image/*,video/*" className="hidden" onChange={addStory}/>
+          </label>
+        </div>
+        <div className="p-3"><StoryBar /></div>
+        <div className="tw-item p-3"><PostComposer /></div>
+      </div>
+
+      {/* feed */}
+      <div className="tw-card">
+        {posts.map((p, i)=> (
+          <div key={p.id} className="tw-item p-3">
+            <PostCard post={p} />
+          </div>
+        ))}
+        {posts.length===0 && <div className="p-6 text-sm opacity-70">No posts yet.</div>}
+      </div>
     </div>
-    <StoryBar />
-    <PostComposer />
-    <div className="space-y-4">{posts.map(p=> <PostCard key={p.id} post={p} />)}</div>
-  </div>)
+  )
 }
