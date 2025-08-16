@@ -26,37 +26,47 @@ export default function Feed(){
 
 const addStory = async (e) => {
   const f = e.target.files?.[0]; if (!f) return
-  const { data: { user } } = await supabase.auth.getUser(); if (!user) return alert('Login first')
+  const { data: { user } } = await supabase.auth.getUser(); 
+  if (!user) return alert('Login first')
 
-  const ext = f.name.split('.').pop()
-  const path = `stories/${crypto.randomUUID()}.${ext}`
+  try {
+    const ext = f.name.split('.').pop()
+    const path = `stories/${crypto.randomUUID()}.${ext}`
 
-  // 1) dosyayı storage'a yükle
-  const { error } = await supabase.storage.from('media').upload(path, f, { upsert: true })
-  if (error) { alert(error.message); return }
+    // 1) Storage'a yükle
+    const up = await supabase.storage.from('media').upload(path, f, { upsert: true })
+    if (up.error) throw up.error
 
-  // 2) public URL al
-  const { data } = supabase.storage.from('media').getPublicUrl(path)
-  const publicUrl = data.publicUrl
+    // 2) Public URL
+    const { data } = supabase.storage.from('media').getPublicUrl(path)
+    const publicUrl = data.publicUrl
 
-  // 3) story tablosuna ekle (24 saatlik)
-  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-  await supabase.from('stories').insert({
-    user_id: user.id,
-    media_url: publicUrl,
-    expires_at: expires
-  })
+    // 3) Story tabloya (24 saat)
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    const insStory = await supabase.from('stories').insert({
+      user_id: user.id,
+      media_url: publicUrl,
+      expires_at: expires
+    })
+    if (insStory.error) throw insStory.error
 
-  // 4) AYNI ANDA feed’e de "post" olarak düş
-  await supabase.from('posts').insert({
-    user_id: user.id,
-    content: '📸 Story paylaştı',
-    media_url: publicUrl
-  })
+    // 4) FEED’E DE düşsün diye posts'a da yaz
+    const insPost = await supabase.from('posts').insert({
+      user_id: user.id,
+      content: '📸 Story paylaştı',
+      media_url: publicUrl
+    })
+    if (insPost.error) throw insPost.error
 
-  // 5) feed’i yenile
-  window.dispatchEvent(new CustomEvent('refresh-feed'))
+    // 5) feed'i yenile
+    window.dispatchEvent(new CustomEvent('refresh-feed'))
+    alert('Story paylaşıldı ve feed’e eklendi')
+  } catch (err) {
+    alert('Story hatası: ' + (err?.message || 'unknown'))
+    console.error(err)
+  }
 }
+
 
 
   return (
