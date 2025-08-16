@@ -24,17 +24,40 @@ export default function Feed(){
     return ()=> window.removeEventListener('refresh-feed', onR)
   },[])
 
-  const addStory = async(e)=>{
-    const f = e.target.files?.[0]; if(!f) return
-    const { data: { user } } = await supabase.auth.getUser(); if(!user) return alert('Login first')
-    const ext = f.name.split('.').pop(); const path = `stories/${crypto.randomUUID()}.${ext}`
-    const { error } = await supabase.storage.from('media').upload(path, f, { upsert: true })
-    if(!error){
-      const { data } = supabase.storage.from('media').getPublicUrl(path)
-      const expires = new Date(Date.now() + 24*60*60*1000).toISOString()
-      await supabase.from('stories').insert({ user_id: user.id, media_url: data.publicUrl, expires_at: expires })
-    }
-  }
+const addStory = async (e) => {
+  const f = e.target.files?.[0]; if (!f) return
+  const { data: { user } } = await supabase.auth.getUser(); if (!user) return alert('Login first')
+
+  const ext = f.name.split('.').pop()
+  const path = `stories/${crypto.randomUUID()}.${ext}`
+
+  // 1) dosyayı storage'a yükle
+  const { error } = await supabase.storage.from('media').upload(path, f, { upsert: true })
+  if (error) { alert(error.message); return }
+
+  // 2) public URL al
+  const { data } = supabase.storage.from('media').getPublicUrl(path)
+  const publicUrl = data.publicUrl
+
+  // 3) story tablosuna ekle (24 saatlik)
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+  await supabase.from('stories').insert({
+    user_id: user.id,
+    media_url: publicUrl,
+    expires_at: expires
+  })
+
+  // 4) AYNI ANDA feed’e de "post" olarak düş
+  await supabase.from('posts').insert({
+    user_id: user.id,
+    content: '📸 Story paylaştı',
+    media_url: publicUrl
+  })
+
+  // 5) feed’i yenile
+  window.dispatchEvent(new CustomEvent('refresh-feed'))
+}
+
 
   return (
     <div className="space-y-4">
