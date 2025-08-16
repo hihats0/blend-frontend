@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabaseServer'
+import { createServerClient } from '@/lib/supabaseServer'
 import { extractMentions } from '@/lib/utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req){
+  const supabaseServer = createServerClient()
   const token = req.headers.get('Authorization')?.split(' ')[1]
   if(!token){
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
