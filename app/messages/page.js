@@ -2,90 +2,108 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
-export default function Messages(){
-  const [convos, setConvos] = useState([])
+export default function MessagesPage(){
+  const [me, setMe] = useState(null)
+  const [threads, setThreads] = useState([])
   const [active, setActive] = useState(null)
-  const [messages, setMessages] = useState([])
+  const [msgs, setMsgs] = useState([])
   const [text, setText] = useState('')
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState([])
+  const [search, setSearch] = useState('')
 
-  const loadConvos = async()=>{
-    const { data: { user } } = await supabase.auth.getUser(); if(!user) return setConvos([])
-    const { data } = await supabase.from('conversation_members')
-      .select('conversations(id, created_at)')
-      .eq('user_id', user.id).order('conversations(created_at)', { ascending: false })
-    setConvos((data||[]).map(d=> d.conversations))
+  useEffect(()=>{ supabase.auth.getUser().then(({data})=> setMe(data?.user||null)) },[])
+
+  const loadThreads = async()=>{
+    const { data: { user } } = await supabase.auth.getUser(); if(!user) return
+    const { data } = await supabase
+      .from('direct_threads')
+      .select('id, user_a, user_b, last_message_at, user_a:profiles!direct_threads_user_a_fkey(username,avatar_url), user_b:profiles!direct_threads_user_b_fkey(username,avatar_url)')
+      .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
+      .order('last_message_at', { ascending:false })
+    setThreads(data||[])
   }
 
-  const open = async(convId)=>{
-    setActive(convId)
-    const { data } = await supabase.from('messages').select('id, content, created_at, profiles(username, avatar_url)').eq('conversation_id', convId).order('created_at', { ascending: true }).limit(200)
-    setMessages(data||[])
+  const openThread = async(t)=>{
+    setActive(t); setMsgs([])
+    const { data } = await supabase
+      .from('direct_messages')
+      .select('id, sender_id, content, media_url, created_at')
+      .eq('thread_id', t.id)
+      .order('created_at', { ascending:true })
+    setMsgs(data||[])
   }
+
+  useEffect(()=>{ loadThreads() },[])
+  useEffect(()=>{
+    if(!active) return
+    const ch = supabase
+      .channel('dm-'+active.id)
+      .on('postgres_changes', { event:'INSERT', schema:'public', table:'direct_messages', filter:`thread_id=eq.${active.id}`},
+        payload => setMsgs(m=> [...m, payload.new])
+      ).subscribe()
+    return ()=> supabase.removeChannel(ch)
+  },[active])
 
   const send = async()=>{
-    const { data: { user } } = await supabase.auth.getUser(); if(!user) return alert('Login')
-    if(!active || !text.trim()) return
-    await supabase.from('messages').insert({ conversation_id: active, user_id: user.id, content: text })
-    setText(''); open(active)
+    const { data: { user } } = await supabase.auth.getUser(); if(!user || !active || !text.trim()) return
+    await supabase.from('direct_messages').insert({ thread_id: active.id, sender_id: user.id, content: text })
+    await supabase.from('direct_threads').update({ last_message_at: new Date().toISOString() }).eq('id', active.id)
+    setText('')
   }
 
-  const searchByUsername = async()=>{
-    if(!query.trim()) return setResults([])
-    const { data } = await supabase.from('profiles').select('id, username, avatar_url').ilike('username', `${query}%`).limit(10)
-    setResults(data||[])
+  const startChat = async()=>{
+    if(!search.trim()) return
+    const { data: prof } = await supabase.from('profiles').select('id,username').eq('username', search.trim()).maybeSingle()
+    if(!prof) return alert('User not found')
+    const { data: tid, error } = await supabase.rpc('get_or_create_direct_thread', { other: prof.id })
+    if(error) return alert(error.message)
+    await loadThreads()
+    const t = (threads.find(x=>x.id===tid) || { id: tid })
+    openThread(t); setSearch('')
   }
 
-  const startChatWith = async(userId)=>{
-    const { data: { user } } = await supabase.auth.getUser(); if(!user) return alert('Login')
-    const { data: conv } = await supabase.from('conversations').insert({ created_by: user.id }).select('id').single()
-    await supabase.from('conversation_members').insert([{ conversation_id: conv.id, user_id: user.id }, { conversation_id: conv.id, user_id: userId }])
-    setQuery(''); setResults([]); loadConvos(); setActive(conv.id); open(conv.id)
+  const their = (t)=>{
+    if(!me) return { username:'' }
+    const mine = me.id
+    const u = (t.user_a?.username && t.user_b?.username)
+      ? (t.user_a?.id===mine ? t.user_b : t.user_a)
+      : (t.user_a?.username ? t.user_a : t.user_b)
+    return u || {}
   }
-
-  useEffect(()=>{ loadConvos() },[])
 
   return (
-    <div className="grid grid-cols-4 gap-4">
-      <div className="col-span-4 sm:col-span-1 space-y-2">
-        <div className="card p-2">
-          <div className="text-sm mb-2">New chat by <span className="text-gold">@username</span></div>
-          <div className="flex gap-2">
-            <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="@nick" className="input flex-1"/>
-            <button onClick={searchByUsername} className="btn">Find</button>
-          </div>
-          <div className="mt-2 space-y-1 max-h-60 overflow-auto">
-            {results.map(u=> (
-              <button key={u.id} onClick={()=> startChatWith(u.id)} className="w-full text-left px-2 py-2 rounded hover:bg-neutral-900 flex items-center gap-2">
-                {u.avatar_url ? <img src={u.avatar_url} className="h-6 w-6 rounded-full"/> : <div className="h-6 w-6 rounded-full bg-neutral-700" />}
-                @{u.username}
+    <div className="grid grid-cols-12 gap-4">
+      <aside className="col-span-5 md:col-span-4 tw-card p-3">
+        <div className="flex gap-2">
+          <input className="input flex-1" placeholder="@username" value={search} onChange={e=>setSearch(e.target.value)}/>
+          <button className="btn" onClick={startChat}>Chat</button>
+        </div>
+        <div className="mt-3 divide-y divide-neutral-800">
+          {threads.map(t=>{
+            const u = their(t)
+            return (
+              <button key={t.id} className={`w-full text-left py-2 ${active?.id===t.id?'text-gold':''}`} onClick={()=>openThread(t)}>
+                @{u.username || 'user'}
               </button>
-            ))}
-          </div>
+            )
+          })}
+          {threads.length===0 && <div className="text-sm opacity-60">No chats yet.</div>}
         </div>
-        <div className="card p-2 max-h-[60vh] overflow-auto">
-          {convos.map(c=> (
-            <button key={c.id} onClick={()=> open(c.id)} className={`block w-full text-left px-2 py-2 rounded ${active===c.id?'bg-neutral-900':''}`}>Chat {c.id.slice(0,8)}</button>
-          ))}
-          {convos.length===0 && <div className="opacity-60 text-sm">No chats yet.</div>}
-        </div>
-      </div>
-      <div className="col-span-4 sm:col-span-3 flex flex-col gap-2">
-        <div className="card p-3 flex-1 min-h-[50vh]">
-          {messages.map(m=> (
-            <div key={m.id} className="mb-2 text-sm flex items-start gap-2">
-              {m.profiles?.avatar_url ? <img src={m.profiles.avatar_url} className="h-6 w-6 rounded-full mt-0.5"/> : <div className="h-6 w-6 rounded-full bg-neutral-700 mt-0.5" />}
-              <div><span className="font-medium">@{m.profiles?.username || 'user'}</span> <span className="opacity-60 text-xs">{new Date(m.created_at).toLocaleTimeString()}</span><div>{m.content}</div></div>
+      </aside>
+
+      <main className="col-span-7 md:col-span-8 tw-card p-3 flex flex-col">
+        <div className="flex-1 space-y-2 overflow-y-auto">
+          {msgs.map(m=>(
+            <div key={m.id} className={`max-w-[80%] ${m.sender_id===me?.id?'ml-auto text-right':''}`}>
+              <div className="inline-block bg-neutral-900 rounded-2xl px-3 py-2">{m.content}</div>
             </div>
           ))}
-          {active && messages.length===0 && <div className="opacity-60">No messages yet.</div>}
+          {!active && <div className="text-sm opacity-60">Pick a chat.</div>}
         </div>
-        <div className="flex gap-2">
-          <input value={text} onChange={e=>setText(e.target.value)} placeholder="Write a message…" className="input flex-1"/>
-          <button onClick={send} className="btn">Send</button>
+        <div className="pt-3 flex gap-2">
+          <input className="input flex-1" placeholder="Message…" value={text} onChange={e=>setText(e.target.value)} />
+          <button className="btn" onClick={send}>Send</button>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
